@@ -35,19 +35,15 @@ bsonifyValue :: AESON.Value -> BSON.Value
 bsonifyValue (Object obj) = Doc $ bsonify obj
 bsonifyValue (AESON.Array array) = BSON.Array . map bsonifyValue . Vector.toList $ array
 bsonifyValue (AESON.String str) = BSON.String str
-bsonifyValue (AESON.Number n)
-   | exponent < 0                              = Float (Scientific.toRealFloat n :: Double)
-   | int64MinBound <= n && n <  int32MinBound  = Int64 $ fromIntegral coefficient * 10 ^ exponent
-   | int32MinBound <= n && n <= int32MaxBound  = Int32 $ fromIntegral coefficient * 10 ^ exponent
-   | int32MaxBound <  n && n <= int64MaxBound  = Int64 $ fromIntegral coefficient * 10 ^ exponent
-   | otherwise                                 = error $ "Integer out of range: " ++ show n
+bsonifyValue (AESON.Number n) = if n < int64MinBound || int64MaxBound < n
+                                  then error $ "Integer out of range: " ++ show n
+                                  else
+                                    case Scientific.floatingOrInteger n of
+                                      Left r  -> Float r
+                                      Right i -> Int64 i
      where
-       exponent       = Scientific.base10Exponent n
-       coefficient    = Scientific.coefficient n
        int64MaxBound  = toScientific (maxBound :: Int64)
-       int32MaxBound  = toScientific (maxBound :: Int32)
        int64MinBound  = toScientific (minBound :: Int64)
-       int32MinBound  = toScientific (minBound :: Int32)
        toScientific i = Scientific.scientific (fromIntegral i :: Integer ) 0
 bsonifyValue (AESON.Bool b) = BSON.Bool b
 bsonifyValue (AESON.Null) = BSON.Null

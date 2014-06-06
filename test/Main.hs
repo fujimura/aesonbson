@@ -25,31 +25,20 @@ main = hspec $ do
       T.length str `shouldBe` 24
 
   describe "JSON -> BSON" $ do
-    it "converts Int32 max bound + 1 to Int64" $ do
-      let x = succ $ fromIntegral (maxBound :: Int32) :: Integer
-      (bsonifyValue . AESON.Number $ Scientific.scientific x 0)
-        `shouldBe` BSON.Int64 (fromIntegral x)
+    it "converts decimals to float" $ do
+      (bsonifyValue . AESON.Number $ Scientific.scientific 3 (-1))
+        `shouldBe` BSON.Float 0.3
 
-    it "converts Int32 max bound to Int32" $ do
-      let x = fromIntegral (maxBound :: Int32) :: Integer
-      (bsonifyValue . AESON.Number $ Scientific.scientific x 0)
-        `shouldBe` BSON.Int32 (fromIntegral x)
-
-    it "converts Int32 min bound to Int32" $ do
-      let x = fromIntegral (minBound :: Int32) :: Integer
-      (bsonifyValue . AESON.Number $ Scientific.scientific x 0)
-        `shouldBe` BSON.Int32 (fromIntegral x)
-
-    it "converts Int32 min bound - 1 to Int64" $ do
-      let x = pred $ fromIntegral (minBound :: Int32) :: Integer
-      (bsonifyValue . AESON.Number $ Scientific.scientific x 0)
-        `shouldBe` BSON.Int64 (fromIntegral x)
-
-    it "converts number smaller than Int32 min bound to Int64" $ do
-      let x = fromIntegral (minBound :: Int32) :: Integer
-      (bsonifyValue . AESON.Number $ Scientific.scientific (pred x) 0)
-        `shouldBe` BSON.Int64 (fromIntegral $ pred x)
-
-    it "converts Int32 to Int32" $ property $ \(x :: Int32) ->
+    it "converts Int64 max bound to Int64" $ do
+      let x = maxBound :: Int64
       (bsonifyValue . AESON.Number $ Scientific.scientific (fromIntegral x) 0)
-        `shouldBe` BSON.Int32 x
+        `shouldBe` BSON.Int64 x
+
+    it "converts Int64 min bound to Int64" $ do
+      let x = minBound :: Int64
+      (bsonifyValue . AESON.Number $ Scientific.scientific (fromIntegral x) 0)
+        `shouldBe` BSON.Int64 x
+
+    it "converts Int64 to Int64" $ property $ \(x :: Int64) ->
+      (bsonifyValue . AESON.Number $ Scientific.scientific (fromIntegral x) 0)
+        `shouldBe` BSON.Int64 x
