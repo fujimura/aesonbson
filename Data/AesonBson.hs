@@ -13,7 +13,8 @@
 -- We tried to choose sensible translations on those cases.
 module Data.AesonBson (
   aesonify, aesonifyValue,
-  bsonify, bsonifyValue
+  bsonify, bsonifyValue,
+  defaultAesonBsonOptions, AesonBsonOptions(..)
 ) where
 
 -- TODO Document the arbitrary choices in the Haddock.
@@ -25,28 +26,38 @@ import           Data.Int
 import           Data.Monoid
 import qualified Data.HashMap.Strict as HashMap (fromList, toList)
 import qualified Data.Scientific as Scientific
+import           Data.Scientific (Scientific)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as Vector (fromList, toList)
 
+data AesonBsonOptions = AesonBsonOptions
+  { numberConversion :: Scientific -> BSON.Value -- ^ how to convert a JSON number to a BSON number. This options is required since number in JSON and BSON don't have same type.
+  }
+
+-- | Default option. This will throw error if a number which is out of
+-- Int64 or Double.
+defaultAesonBsonOptions :: AesonBsonOptions
+defaultAesonBsonOptions = AesonBsonOptions { numberConversion = coerceToBoundary }
+  where
+    coerceToBoundary n
+      | n < int64MinBound = error $ "Integer out of range: " ++ show n
+      | int64MaxBound < n = error $ "Integer out of range: " ++ show n
+      | otherwise         = case Scientific.floatingOrInteger n of
+                              Left r  -> Float r
+                              Right i -> Int64 i
+    int64MaxBound  = toScientific (maxBound :: Int64)
+    int64MinBound  = toScientific (minBound :: Int64)
+    toScientific i = Scientific.scientific (fromIntegral i :: Integer ) 0
 
 -- | Converts a JSON value to BSON.
-bsonifyValue :: AESON.Value -> BSON.Value
-bsonifyValue (Object obj) = Doc $ bsonify obj
-bsonifyValue (AESON.Array array) = BSON.Array . map bsonifyValue . Vector.toList $ array
-bsonifyValue (AESON.String str) = BSON.String str
-bsonifyValue (AESON.Number n) = if n < int64MinBound || int64MaxBound < n
-                                  then error $ "Integer out of range: " ++ show n
-                                  else
-                                    case Scientific.floatingOrInteger n of
-                                      Left r  -> Float r
-                                      Right i -> Int64 i
-     where
-       int64MaxBound  = toScientific (maxBound :: Int64)
-       int64MinBound  = toScientific (minBound :: Int64)
-       toScientific i = Scientific.scientific (fromIntegral i :: Integer ) 0
-bsonifyValue (AESON.Bool b) = BSON.Bool b
-bsonifyValue (AESON.Null) = BSON.Null
+bsonifyValue :: AesonBsonOptions -> AESON.Value -> BSON.Value
+bsonifyValue opts (Object obj) = Doc $ bsonify opts obj
+bsonifyValue opts (AESON.Array array) = BSON.Array . map (bsonifyValue opts) . Vector.toList $ array
+bsonifyValue _ (AESON.String str) = BSON.String str
+bsonifyValue ops (AESON.Number n) = numberConversion ops n
+bsonifyValue _ (AESON.Bool b) = BSON.Bool b
+bsonifyValue _ (AESON.Null) = BSON.Null
 
 -- | Converts a BSON value to JSON.
 aesonifyValue :: BSON.Value -> AESON.Value
@@ -77,8 +88,8 @@ aesonifyValue (MinMax mm) = case mm of { MinKey -> toJSON (-1 :: Int)
 
 
 -- | Converts an AESON object to a BSON document.
-bsonify :: AESON.Object -> BSON.Document
-bsonify = map (\(t, v) -> t := bsonifyValue v) . HashMap.toList
+bsonify :: AesonBsonOptions -> AESON.Object -> BSON.Document
+bsonify opts = map (\(t, v) -> t := bsonifyValue opts v) . HashMap.toList
 
 -- | Converts a BSON document to an AESON object.
 aesonify :: BSON.Document -> AESON.Object
