@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 
 -- | Convert JSON to BSON and the other way around.
 --
@@ -40,15 +40,9 @@ data AesonBsonOptions = AesonBsonOptions
 defaultAesonBsonOptions :: AesonBsonOptions
 defaultAesonBsonOptions = AesonBsonOptions { numberConversion = coerceToBoundary }
   where
-    coerceToBoundary n
-      | n < int64MinBound = error $ "Integer out of range: " ++ show n
-      | int64MaxBound < n = error $ "Integer out of range: " ++ show n
-      | otherwise         = case Scientific.floatingOrInteger n of
-                              Left r  -> Float r
-                              Right i -> Int64 i
-    int64MaxBound  = toScientific (maxBound :: Int64)
-    int64MinBound  = toScientific (minBound :: Int64)
-    toScientific i = Scientific.scientific (fromIntegral i :: Integer ) 0
+    coerceToBoundary n = case (Scientific.floatingOrInteger n :: Either Double Int64) of
+                           Left r -> Float r
+                           Right i -> Int64 i
 
 -- | Converts a JSON value to BSON.
 bsonifyValue :: AesonBsonOptions -> AESON.Value -> BSON.Value

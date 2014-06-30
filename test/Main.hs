@@ -45,9 +45,15 @@ main = hspec $ do
         (bsonifyValue defaultAesonBsonOptions . AESON.Number $ Scientific.scientific (fromIntegral x) 0)
           `shouldBe` BSON.Int64 x
 
-      it "raises error when precision of given number is too big for Double" $  pending
-      it "raises error when given number is too big for Int64" $ do
-        let x = fromIntegral (maxBound :: Int64) :: Integer
-        let e = bsonifyValue defaultAesonBsonOptions . AESON.Number $ Scientific.scientific (succ x) 0
-        evaluate e `shouldThrow` errorCall "foo"
-      it "raises error when given number is too small for Int64" $  pending
+      it "converts number which is too big for Int64 to 0" $ do
+        let x = succ . succ $ fromIntegral (maxBound :: Int64) :: Integer
+        print $ show x
+        print $ Scientific.scientific x 0
+        print $ AESON.Number $ Scientific.scientific x 0
+        (bsonifyValue defaultAesonBsonOptions . AESON.Number $ Scientific.scientific x 0)
+          `shouldBe` BSON.Int64 0
+
+      it "raises error when given number is too small for Int64" $ do
+        let x = pred $ fromIntegral (minBound :: Int64) :: Integer
+        (bsonifyValue defaultAesonBsonOptions . AESON.Number $ Scientific.scientific x 0)
+          `shouldBe` BSON.Int64 0
